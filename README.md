@@ -24,11 +24,12 @@ You'll need:
   * net-libs/zeromq
   * net-libs/cppzmq
 
+<pre>
 git clone https://github.com/erazor83/dynamixel_zmq
 cd dynamixel_zmq
 cmake .
 make
-
+</pre>
 
 links
 -------------------------
