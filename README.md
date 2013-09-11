@@ -1,8 +1,10 @@
-===== dynamixel_zmq =====
+dynamixel_zmq
+================================
 
 Linux usermode service for Dynamixel AX12/AX18 servos with ZeroMQ interface
 
-==== purpose ====
+purpose
+-------------------------
 The main purpose is to allow fast and easy access to a Dynamixel servo network.
 I did this already with Python but cos of performance I decided to write this tool.
 CRC and buffer management is done in CPP so that should increase performance quite a bit.
@@ -12,9 +14,11 @@ ZeroMQ even allows us to do this in a destributed way, allowing access over the 
 I'm also planning to implement a client which will provide all the NUKE functionality, but thats the second step.
 
 
-==== install ====
+install
+-------------------------
 
-=== ... on gentoo ===
+... on gentoo
+------------
 You'll need:
   * dev-libs/boost
   * net-libs/zeromq
@@ -26,18 +30,23 @@ cmake .
 make
 
 
-==== links ====
+links
+-------------------------
 
-=== ZeroMQ ===
+ZeroMQ
+------------
   * http://zeromq.org/
 
-=== dynapi ===
+dynapi
+------------
   * http://www.jrl.cs.uni-frankfurt.de/web/projects/dynapi-robotis-dynamixel-c-api/
 
-=== Python ===
+Python
+------------
   * http://www.python.org/
   * https://code.google.com/p/pydynamixel/
 
-=== NUKE ===
+NUKE
+------------
   * https://code.google.com/p/arbotix/wiki/GettingSetup
 
