@@ -11,7 +11,9 @@ ZeroMQ even allows us to do this in a destributed way, allowing access over the 
 
 I'm also planning to implement a client which will provide all the NUKE functionality, but thats the second step.
 
+
 ==== install ====
+
 === ... on gentoo ===
 You'll need:
   * dev-libs/boost
@@ -25,13 +27,17 @@ make
 
 
 ==== links ====
+
 === ZeroMQ ===
   * http://zeromq.org/
+
 === dynapi ===
   * http://www.jrl.cs.uni-frankfurt.de/web/projects/dynapi-robotis-dynamixel-c-api/
+
 === Python ===
   * http://www.python.org/
   * https://code.google.com/p/pydynamixel/
+
 === NUKE ===
   * https://code.google.com/p/arbotix/wiki/GettingSetup
 
