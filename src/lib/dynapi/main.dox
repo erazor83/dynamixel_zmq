@@ -1,0 +1,76 @@
+/** @file main.dox
+Main page of documentation
+*/
+/**  
+@mainpage dynApi - Robotis Dynamixel c++ progamming api
+ 
+@section Introduction Introduction
+
+This package provides access to <a href="http://www.robotis.com">Robotis</a>
+Dynamixel servos and sensors. These devices are on a bus which is connected 
+to the host PC via a robot controller (interface).
+
+Interfaces currently supported:
+- Robotis CM-5 (serial port)
+- [planned: USB2Dynamixel]
+
+Devices currently supported:
+- AX-12 Servo
+- AX-S1 Sensor Module
+
+This package is developed by Holger Friedrich,  
+working group "Visual Sensorics and Information processing", 
+Institute of Computer Science,
+Johann Wolfgang Goethe-University, Frankfurt am Main / Germany.
+
+
+@author
+Holger Friedrich holger.friedrich@vsi.cs.uni-frankfurt.de
+
+The latest version of this package can be found at http://www.vsi.cs.uni-frankfurt.de/dynapi/ 
+
+@section backends Backends
+
+dynApi relies on several backends, i.e. provides serveral ways to
+communicate with a connected interface. Backends available may depend
+on the platform you are using.
+
+dynApi currently has been tested on:
+- Linux 2.6, gcc 4.2
+- MacOS X (not yet!)
+- Windows XP, Visual Studio v8 .NET 2003 (backend not working yet!)
+- Windows Vista, Visual Studio v9 .NET 2008 (backend not working yet!)
+
+The following table shows the platforms and backends currently
+supported by dynApi:
+<pre>
+---------------------------------------------------------------
+| backend        \ System  | Linux2.6  | MacOSX    | Win      |
+---------------------------------------------------------------
+| Robotis CM-5 controller: | yes       | yes       | not yet  |
+| serial connection 57600  |           |           |          |
+---------------------------------------------------------------
+| Robotis USB2Dynamixel:   | not yet   | not yet   | not yet  |
+| libusb support           |           |           |          |
+---------------------------------------------------------------
+</pre>
+
+
+@section testing Test your interface
+You may run the example and test programs provided with this package to test the
+communication with your robot. Try this:
+- dyntestinterface (@ref dynTestInterface.cc)
+
+@section Start Where to start...
+
+Connections to an interface can be made using the generic class
+dynapi::dynInterface. DynInterface is an abstract base class which encapsulates
+access to interfaces connected via serial cable (or usb).
+
+Please use the factory function dynapi::dynGetIfFromFactory which returns a pointer
+to the appropriate class instance.
+
+@section Examples Examples
+use the link "Examples" in the menu bar above
+
+*/

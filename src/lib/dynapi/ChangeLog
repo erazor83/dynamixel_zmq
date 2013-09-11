@@ -1,0 +1,9 @@
+May 29, 2008    v0.3
+                Fix for timing on fast machines (implemented resend on "Bad
+		Command")
+								
+May 09, 2008    v0.2
+                Minor fix for timing on fast machines
+								
+Mar 23, 2008    v0.1
+                Release of the first public beta
