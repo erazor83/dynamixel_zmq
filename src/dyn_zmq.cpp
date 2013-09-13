@@ -1,8 +1,10 @@
-//
-//  Hello World server in C++
-//  Binds REP socket to tcp://*:5555
-//  Expects "Hello" from client, replies with "World"
-//
+/**
+ * Dynamixel ZeroMQ service
+ * __author__		= Alexander Krause <alexander.krause@ed-solutions.de>
+ * __version__	= 0.0.1
+ * __date__			= 2013-09-13
+ */
+
 #include <zmq.hpp>
 #include <unistd.h>
 
