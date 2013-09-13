@@ -7,5 +7,7 @@ set(Boost_USE_MULTITHREADED      OFF)
 find_package(Boost COMPONENTS system REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
 
+set(DYNIF_SUPPORT_CM5  ON)
+
 set(CMAKE_CXX_FLAGS "-g -Wall")
 add_subdirectory(src)

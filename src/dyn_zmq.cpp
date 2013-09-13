@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
 	// === program parameters ===
 	std::string zmq_uri="tcp://*:5555";
 	std::string serial_port="/dev/ttyUSB0";
+	std::string interface_type="cm5";
 	uint32_t serial_speed=1000000;
 	
 	namespace po = boost::program_options;
@@ -35,9 +36,10 @@ int main(int argc, char** argv) {
   po::options_description desc("Options");
 	desc.add_options()
 		("help", "produce help message")
-		("uri", po::value< std::string >( &zmq_uri ),      "ZeroMQ server uri | default: tcp://*:5555" )
-		("port", po::value< std::string >( &serial_port ), "serial port       | default: /dev/ttyUSB0" )
-		("speed", po::value< uint32_t >( &serial_speed ),  "serial speed      | default: 1000000" )
+		("uri", po::value< std::string >( &zmq_uri ),					"ZeroMQ server uri | default: tcp://*:5555" )
+		("port", po::value< std::string >( &serial_port ),		"serial port       | default: /dev/ttyUSB0" )
+		("speed", po::value< uint32_t >( &serial_speed ),			"serial speed      | default: 1000000" )
+		("type", po::value< std::string >( &interface_type ),	"interface type    | default: cm5" )
 		("dynamixel-scan", "scan for dynamixel servos")
 	;
 
@@ -65,8 +67,22 @@ int main(int argc, char** argv) {
 #endif
 
 	// === dynamixel part ===
-	dynapi::dyn_if_conn connection = dynapi::DYN_IC_SERIAL;
-
+	dynapi::dyn_if_conn connection;
+	if (false) {
+		
+#ifdef DYNIF_SUPPORT_CM5
+	} else if (strcasestr(interface_type.c_str(),"cm5")!=NULL){
+		connection = dynapi::DYN_IC_SERIAL;
+		std::cout << "Connection type: cm5"<< std::endl;
+#endif
+	} else {
+		std::cout << "Unsupported interface type!"<< std::endl;
+		std::cout << "Supported types are:"<< std::endl;
+#ifdef DYNIF_SUPPORT_CM5
+		std::cout << "  * --type=cm5         | CM5 Posix Serial"<< std::endl;
+#endif
+	}
+	
 	try {
 		// open a connection to cm-5 interface
 		// (shared_ptr provides automatic garbage collection, ptr will be released
