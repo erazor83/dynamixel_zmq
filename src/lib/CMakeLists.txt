@@ -1,2 +1,2 @@
-add_subdirectory(dynapi)
+add_subdirectory(libdynamixel)
 

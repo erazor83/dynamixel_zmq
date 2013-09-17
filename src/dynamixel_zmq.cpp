@@ -2,7 +2,7 @@
  * Dynamixel ZeroMQ service
  * __author__		= Alexander Krause <alexander.krause@ed-solutions.de>
  * __version__	= 0.0.1
- * __date__			= 2013-09-13
+ * __date__			= 2013-09-17
  */
 
 #include <zmq.hpp>
@@ -13,7 +13,7 @@
 #include <string>
 #include <fstream>
 
-#include "dynapi/dynapi.h"
+#include "dynamixel.h"
 
 #define DESCRIPTION "dyn_zmq - Dynamixel ZeroMQ service"
 namespace { 
@@ -69,20 +69,11 @@ int main(int argc, char** argv) {
 #endif
 
 	// === dynamixel part ===
-	dynapi::dyn_if_conn connection;
-	if (false) {
-		
-#ifdef DYNIF_SUPPORT_CM5
-	} else if (strcasestr(interface_type.c_str(),"cm5")!=NULL){
-		connection = dynapi::DYN_IC_SERIAL;
-		std::cout << "Connection type: cm5"<< std::endl;
-#endif
-	} else {
-		std::cout << "Unsupported interface type!"<< std::endl;
-		std::cout << "Supported types are:"<< std::endl;
-#ifdef DYNIF_SUPPORT_CM5
-		std::cout << "  * --type=cm5         | CM5 Posix Serial"<< std::endl;
-#endif
+	dynamixel_t *dyn;
+	dyn = dynamixel_new_rtu(DYN_CFG_PORT, DYN_CFG_SPEED, _DYNAMIXEL_SERIAL_DEFAULTS);
+
+	dynamixel_set_debug(dyn,DYN_CFG_DEBUG);
+	if (dynamixel_connect(dyn)==0) {
 	}
 	
 	try {
