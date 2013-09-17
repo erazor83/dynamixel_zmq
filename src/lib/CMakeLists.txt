@@ -1,2 +1,4 @@
-ADD_SUBDIRECTORY(libdynamixel)
 
+if(USE_DYNAMIXEL_BUNDLED)
+	ADD_SUBDIRECTORY(libdynamixel)
+endif()

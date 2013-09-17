@@ -4,8 +4,10 @@ PROJECT(dynamixel_zmq)
 SET(Boost_USE_STATIC_LIBS        OFF)
 SET(Boost_USE_MULTITHREADED      OFF)
 
+SET(USE_DYNAMIXEL_BUNDLED        ON)
+
 FIND_PACKAGE(Boost COMPONENTS system REQUIRED)
 FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
 
-set(CMAKE_CXX_FLAGS "-g -Wall")
-add_subdirectory(src)
+SET(CMAKE_CXX_FLAGS "-g -Wall")
+ADD_SUBDIRECTORY(src)

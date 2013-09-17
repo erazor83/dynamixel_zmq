@@ -72,11 +72,31 @@ int main(int argc, char** argv) {
 	dynamixel_t *dyn;
 	dyn = dynamixel_new_rtu(serial_port.c_str(), (uint32_t)serial_speed, _DYNAMIXEL_SERIAL_DEFAULTS);
 
+	int8_t dyn_connected;
 	dynamixel_set_debug(dyn,true);
-	if (dynamixel_connect(dyn)==0) {
-	}
+	dyn_connected=dynamixel_connect(dyn);
 	
-
+	if (vm.count("dynamixel-scan")) {
+		if (dyn_connected==0) {
+			uint8_t *found_ids;
+			uint8_t id_count;
+			id_count=dynamixel_search(dyn, 1,30,&found_ids);
+			printf("%i Dynamixels found\n",id_count);
+			while (id_count--) {
+				printf(
+					"  * Dynamixels #% 3i found @ % 2i\n",
+					id_count,
+					found_ids[id_count]
+				);
+			}
+			dynamixel_close(dyn);
+			dynamixel_free(dyn);
+			return SUCCESS; 
+		} else {
+			dynamixel_free(dyn);
+			return 0;
+		}
+	}
 		
 		
 	// === ZMQ part ===
