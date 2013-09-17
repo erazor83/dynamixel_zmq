@@ -1,0 +1,3 @@
+[submodule "src/lib/libdynamixel"]
+	path = src/lib/libdynamixel
+	url = git://github.com/erazor83/dynamixel_zmq
