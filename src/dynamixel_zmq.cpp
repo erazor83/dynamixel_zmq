@@ -70,29 +70,12 @@ int main(int argc, char** argv) {
 
 	// === dynamixel part ===
 	dynamixel_t *dyn;
-	dyn = dynamixel_new_rtu(DYN_CFG_PORT, DYN_CFG_SPEED, _DYNAMIXEL_SERIAL_DEFAULTS);
+	dyn = dynamixel_new_rtu(serial_port.c_str(), (uint32_t)serial_speed, _DYNAMIXEL_SERIAL_DEFAULTS);
 
-	dynamixel_set_debug(dyn,DYN_CFG_DEBUG);
+	dynamixel_set_debug(dyn,true);
 	if (dynamixel_connect(dyn)==0) {
 	}
 	
-	try {
-		// open a connection to cm-5 interface
-		// (shared_ptr provides automatic garbage collection, ptr will be released
-		// if last shared_ptr is destructed)
-		boost::shared_ptr<dynapi::DynInterface> dyni (dynapi::dynGetIfFromFactory(serial_port, connection));
-		
-		//dynamixel direct commands
-		if (vm.count("dynamixel-scan")) {
-			std::vector<dynapi::Ax> devices( dyni->scanBus() );
-			std::cout << devices <<  std::endl <<  std::endl;
-			return SUCCESS; 
-		}
-		
-	} catch (std::exception &x) { // anything went wrong
-		std::cout << x.what() << std::endl;
-		return EXIT_FAILURE;
-	}
 
 		
 		
