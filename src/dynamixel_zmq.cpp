@@ -5,13 +5,17 @@
  * __date__			= 2013-09-17
  */
 
-#include <zmq.hpp>
 #include <unistd.h>
 
 #include "boost/program_options.hpp"
 #include <iostream>
 #include <string>
 #include <fstream>
+
+#include <msgpack.hpp>
+#include <vector>
+#include <zmq.hpp>
+
 
 #include "dynamixel.h"
 
@@ -105,20 +109,30 @@ int main(int argc, char** argv) {
 	socket.bind (zmq_uri.c_str());
 
 	std::cout << "Server started (uri="<<zmq_uri<<")" << std::endl;
+
 	while (true) {
-		zmq::message_t request;
-
+		zmq::message_t rx_zmq;
+		
 		//  Wait for next request from client
-		socket.recv (&request);
-		std::cout << "Received Hello" << std::endl;
+		if (socket.recv (&rx_zmq)) {
+			// Deserialize the serialized data.
 
-		//  Do some 'work'
-		sleep (1);
+			msgpack::unpacked rx_msg;
+			msgpack::unpack(&rx_msg, static_cast<char*>(rx_zmq.data()), rx_zmq.size());
+			msgpack::object rx_obj = rx_msg.get();
 
-		//  Send reply back to client
-		zmq::message_t reply (5);
-		memcpy ((void *) reply.data (), "World", 5);
-		socket.send (reply);
+			// Print the deserialized object to stdout.
+			std::cout << rx_obj << std::endl;    // ["Hello," "World!"]
+
+			
+			msgpack::sbuffer tx_msg;
+			msgpack::pack(&tx_msg, rx_obj);
+			
+			zmq::message_t tx_zmq(tx_msg.size());
+			memcpy(static_cast<char*>(tx_zmq.data()), tx_msg.data(), tx_msg.size());
+
+			socket.send(tx_zmq);
+		}
 	}
 	return 0;
 }
