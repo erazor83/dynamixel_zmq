@@ -23,6 +23,7 @@ You'll need:
   * dev-libs/boost
   * net-libs/zeromq
   * net-libs/cppzmq
+  * dev-libs/msgpack
 
 <pre>
 git clone https://github.com/erazor83/dynamixel_zmq
