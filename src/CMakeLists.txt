@@ -1,7 +1,35 @@
 SET(CORELIBS ${Boost_SYSTEM_LIBRARY})
 
-#TODO:
-# add msgpack and zmq checks
+IF (${CMAKE_SYSTEM} MATCHES ".*gentoo.*")
+	SET (GENTOO ON)
+	SET (LINUX)
+	MESSAGE("=== Detected system is Gentoo ===")
+ELSE()
+	MESSAGE("=== Detected system is ${CMAKE_SYSTEM} ===") 
+ENDIF()
+
+INCLUDE (CheckIncludeFiles)
+CHECK_INCLUDE_FILES("zmq.hpp" HAS_ZMQ)
+
+IF (NOT DEFINED HAS_ZMQ)
+	MESSAGE(SEND_ERROR "ZeroMQ CPP headers not found!")
+ENDIF()
+
+CHECK_INCLUDE_FILES("msgpack.hpp" HAS_MSGPACK)
+IF (NOT DEFINED HAS_MSGPACK)
+	MESSAGE(SEND_ERROR "MessagePack CPP headers not found!")
+ENDIF()
+
+MESSAGE("LIBS: ${HAS_ZMQ} ${HAS_MSGPACK}")
+IF (GENTOO)
+	IF (NOT DEFINED HAS_MSGPACK)
+		MESSAGE("    install dev-libs/msgpack")
+	ENDIF()
+	IF (NOT DEFINED HAS_ZMQ)
+		MESSAGE("    install net-libs/cppzmq")
+	ENDIF()
+ENDIF()
+
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_LIST_DIR}/lib/libdynamixel/src)
 

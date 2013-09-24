@@ -29,7 +29,9 @@ typedef enum {
 	DYNAMIXEL_RQ_SYNC_WRITE		=0x83,
 	
 	/* custom commands */
-	DYNAMIXEL_RQ_ZMQ_ECHO			=0xF0,
+	DYNAMIXEL_RQ_ZMQ_ECHO					=0x100,
+	
+	DYNAMIXEL_RQ_SYNC_WRITE_WORDS	=0x183, 
 	
 } dynamixel_request_t;
 
@@ -42,11 +44,12 @@ namespace {
 }
 
 typedef enum {
-	ZMQ_ERR_NO_ERROR						= 0,
-	ZMQ_ERR_INVALID_COMMAND			= -1000,
-	ZMQ_ERR_INVALID_FORMAT			= -1001,
-	ZMQ_ERR_INVALID_PARAMETERS	= -1002,
-	ZMQ_ERR_BUS_OFFLINE					= -1003,
+	ZMQ_ERR_NO_ERROR								= 0,
+	ZMQ_ERR_INVALID_COMMAND					= -1000,
+	ZMQ_ERR_INVALID_FORMAT					= -1001,
+	ZMQ_ERR_INVALID_PARAMETERS			= -1002,
+	ZMQ_ERR_INVALID_PARAMETER_COUNT	= -1003,
+	ZMQ_ERR_BUS_OFFLINE							= -1010,
 	
 } zmq_error_code_t;
 //using namespace std;
@@ -110,7 +113,7 @@ int main(int argc, char** argv) {
 	dyn = dynamixel_new_rtu(serial_port.c_str(), (uint32_t)serial_speed, _DYNAMIXEL_SERIAL_DEFAULTS);
 
 	int8_t dyn_connected;
-	dynamixel_set_debug(dyn,true);
+	dynamixel_set_debug(dyn,debug);
 	dyn_connected=dynamixel_connect(dyn);
 	
 	if (vm.count("dynamixel-scan")) {
@@ -144,6 +147,11 @@ int main(int argc, char** argv) {
 	if (debug) {
 		std::cout << "Server started (uri="<<zmq_uri<<")" << std::endl;
 	}
+
+		
+	/* i decided to use a static buffer instead of malloc on every call */
+	uint8_t		tmp_uint8[DYNAMIXEL_MAX_PARAMETER_COUNT];
+	uint16_t	tmp_uint16[DYNAMIXEL_MAX_PARAMETER_COUNT/2];
 	
 	while (true) {
 		zmq::message_t rx_zmq;
@@ -151,9 +159,9 @@ int main(int argc, char** argv) {
 		msgpack::object tx_obj;
 		msgpack::sbuffer tx_msg;
 		msgpack::unpacked rx_msg;
-		std::vector<uint8_t> rx_vect;
-		std::vector<int> tx_vect;
-					
+		std::vector<int16_t> rx_vect;
+		std::vector<int16_t> tx_vect;
+
 		//  Wait for next request from client
 		if (socket.recv (&rx_zmq)) {
 			// Deserialize the serialized data.
@@ -182,14 +190,15 @@ int main(int argc, char** argv) {
 			
 			if (tx_error_code==0) {
 				if (debug) {
-					std::cout << "command: " << (int)rx_vect.at(0) << std::endl;
+					std::cout << "command: " << (int16_t)rx_vect.at(0) << std::endl;
 				}
 				
 
 				switch (rx_vect.at(0)) {
 					case DYNAMIXEL_RQ_PING:
+						//zmq-message: <cmd>,<id>
 						if (rx_vect.size()!=2) {
-							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
 						} else if (dyn_connected==0) {
 							dynamixel_ret=dynamixel_ping(dyn,(uint8_t)rx_vect.at(1));
 							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
@@ -200,17 +209,43 @@ int main(int argc, char** argv) {
 						break;
 
 					case DYNAMIXEL_RQ_READ_DATA:
-						//std::copy(buf,buf+length,std::back_inserter(vec));
-					case DYNAMIXEL_RQ_WRITE_DATA:
-						if (rx_vect.size()>3) {
-							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+						//zmq-message: <cmd>,<id>,<register>,<count>
+						if (rx_vect.size()!=4) {
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
 						} else if (dyn_connected==0) {
+							uint8_t *pdata;
+							dynamixel_ret=dynamixel_read_data(
+								dyn,
+								(uint8_t)rx_vect.at(1),							/*id*/
+								(dynamixel_register_t)rx_vect.at(2),/*address*/
+								(uint8_t)rx_vect.at(3),							/*count*/
+								&pdata
+							);
+							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
+							if (dynamixel_ret) {
+								for (uint8_t i=0; i<dynamixel_ret;i++) {
+									tx_vect.push_back(pdata[i]);
+								}
+							}
+						} else {
+							tx_error_code=ZMQ_ERR_BUS_OFFLINE;
+						}
+						break;
+					case DYNAMIXEL_RQ_WRITE_DATA:
+						//zmq-message: <cmd>,<id>,<register>,<count>,<data>,<data+1>
+						if ((rx_vect.size()<5) or ((uint16_t)(rx_vect.at(2)*(rx_vect.at(3)+1))>rx_vect.size())) {
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
+						} else if (dyn_connected==0) {
+							/* copy into uint8_t*/
+							for (uint8_t cP=0;cP<rx_vect.size()-3;cP++) {
+								tmp_uint8[cP]=rx_vect.at(cP+3);
+							}
 							dynamixel_ret=dynamixel_write_data(
 								dyn,
 								(uint8_t)rx_vect.at(1),
 								(dynamixel_register_t)rx_vect.at(2),
 								rx_vect.size()-3,
-								static_cast<uint8_t*>(rx_vect.data())
+								tmp_uint8
 							);
 							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
 							tx_vect.push_back(dynamixel_ret);
@@ -219,25 +254,31 @@ int main(int argc, char** argv) {
 						}
 						break;
 					case DYNAMIXEL_RQ_REG_WRITE:
-						if (rx_vect.size()>3) {
-							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
-						} else if (dyn_connected==0) {
+						//zmq-message: <cmd>,<id>,<register>,<count>,<data>,<data+1>
+						/* this will cut higher bytes from parameters */
+						if (dyn_connected==0) {
+							/* copy into uint8_t*/
+							for (uint8_t cP=0;cP<rx_vect.size()-3;cP++) {
+								tmp_uint8[cP]=rx_vect.at(cP+3);
+							}
 							dynamixel_ret=dynamixel_reg_write(
 								dyn,
 								(uint8_t)rx_vect.at(1),
 								(dynamixel_register_t)rx_vect.at(2),
 								rx_vect.size()-3,
-								static_cast<uint8_t*>(rx_vect.data())
+								tmp_uint8
 							);
 							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
 							tx_vect.push_back(dynamixel_ret);
+
 						} else {
 							tx_error_code=ZMQ_ERR_BUS_OFFLINE;
 						}
 						break;
 					case DYNAMIXEL_RQ_REG_ACTION:
+						//zmq-message: <cmd>,<id>
 						if (rx_vect.size()!=2) {
-							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
 						} else if (dyn_connected==0) {
 							dynamixel_ret=dynamixel_action(dyn,(uint8_t)rx_vect.at(1));
 							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
@@ -248,8 +289,9 @@ int main(int argc, char** argv) {
 						break;
 						
 					case DYNAMIXEL_RQ_RESET:
+						//zmq-message: <cmd>,<id>
 						if (rx_vect.size()!=2) {
-							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
 						} else if (dyn_connected==0) {
 							dynamixel_ret=dynamixel_reset(dyn,(uint8_t)rx_vect.at(1));
 							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
@@ -260,15 +302,20 @@ int main(int argc, char** argv) {
 						break;
 						
 					case DYNAMIXEL_RQ_SYNC_WRITE:
-						if (rx_vect.size()>3) {
-							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+						//zmq-message: <cmd>,<register>,<id_count>,<parameter_count>,<servo-id>,<data>,<data+n>
+						if ((rx_vect.size()<6) or ((uint16_t)(rx_vect.at(2)*(rx_vect.at(3)+1))>rx_vect.size())) {
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
 						} else if (dyn_connected==0) {
-							dynamixel_ret=dynamixel_write_data(
+							/* copy into uint8_t*/
+							for (uint8_t i=0;i<(rx_vect.at(2)*(rx_vect.at(3)+1));i++) {
+								tmp_uint8[i]=rx_vect.at(i+4);
+							}
+							dynamixel_ret=dynamixel_sync_write(
 								dyn,
-								(uint8_t)rx_vect.at(1),
-								(dynamixel_register_t)rx_vect.at(2),
-								rx_vect.size()-3,
-								static_cast<uint8_t*>(rx_vect.data())
+								(dynamixel_register_t)rx_vect.at(1),	/*register*/
+								(uint8_t)rx_vect.at(2),								/*id-count*/
+								(uint8_t)rx_vect.at(3),								/*parameter_count*/
+								tmp_uint8
 							);
 							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
 							tx_vect.push_back(dynamixel_ret);
@@ -276,9 +323,34 @@ int main(int argc, char** argv) {
 							tx_error_code=ZMQ_ERR_BUS_OFFLINE;
 						}
 						break;
+						
+					case DYNAMIXEL_RQ_SYNC_WRITE_WORDS:
+						//zmq-message: <cmd>,<register>,<id_count>,<parameter_count>,<servo-id>,<data>,<data+n>
+						if ((rx_vect.size()<6) or ((uint16_t)(rx_vect.at(2)*(rx_vect.at(3)+1))>rx_vect.size())) {
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
+						} else if (dyn_connected==0) {
+							/* copy into uint8_t*/
+							for (uint8_t i=0;i<(rx_vect.at(2)*(rx_vect.at(3)+1));i++) {
+								tmp_uint16[i]=rx_vect.at(i+4);
+							}
+							dynamixel_ret=dynamixel_sync_write_words(
+								dyn,
+								(dynamixel_register_t)rx_vect.at(1),	/*register*/
+								(uint8_t)rx_vect.at(2),								/*id-count*/
+								(uint8_t)rx_vect.at(3),								/*word_count*/
+								tmp_uint16
+							);
+							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
+							tx_vect.push_back(dynamixel_ret);
+						} else {
+							tx_error_code=ZMQ_ERR_BUS_OFFLINE;
+						}
+						break;
+
 					case DYNAMIXEL_RQ_ZMQ_ECHO:
+						//zmq-message: <cmd>,<data>,<data+n>
 						tx_obj=rx_obj;
-						tx_error_code=0;
+						tx_error_code=ZMQ_ERR_NO_ERROR;
 						msgpack::pack(&tx_msg, tx_obj);
 						break;
 						
@@ -287,6 +359,7 @@ int main(int argc, char** argv) {
 				}
 				if (tx_error_code) {
 					tx_vect.push_back(tx_error_code);
+				} else if (tx_vect.size()) {
 					msgpack::pack(&tx_msg, tx_vect);
 				}
 			} else {
