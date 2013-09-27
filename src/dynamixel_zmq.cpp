@@ -18,16 +18,30 @@
 
 
 #ifdef ENABLE_PYPOSE_COMMANDS
+#define PYPOSE_ID             253
 #define PYPOSE_MAX_POSE_SIZE  32
 #define PYPOSE_MAX_POSE_COUNT 255
+#define PYPOSE_MAX_SEQUENCE_COUNT 255
 typedef struct {
-	uint8_t id;
 	uint8_t len;
 	uint16_t *values;
 } pypose_pose_t;
 
 pypose_pose_t* pyPose_Poses[PYPOSE_MAX_POSE_COUNT];
-uint8_t pyPose_PoseSize;
+
+typedef struct {
+	uint8_t pose_id;
+	uint16_t delay;
+} pypose_seq_part_t;
+
+typedef struct {
+	uint8_t len;
+	pypose_seq_part_t* parts;
+} pypose_sequence_t;
+
+pypose_sequence_t* pyPose_Sequences[PYPOSE_MAX_SEQUENCE_COUNT];
+
+uint8_t pyPose_PoseSize=0;
 #endif
 
 #include "dynamixel.h"
@@ -49,13 +63,13 @@ typedef enum {
 	/*0x07, <pose-size>*/
 	PYPOSE_SET_POSESIZE				=0x07,
 	/*0x08, <index>. <pos1_L>, <pos1_H> */
-	PYPOSE_POSE_POSITIONS			=0x08,
+	PYPOSE_LOAD_POSE					=0x08,
 	/*0x08, <index>. <pos1_L>, <pos1_H> */
-	PYPOSE_SEQUENCE_DATA			=0x09,
+	PYPOSE_LOAD_SEQUENCE			=0x09,
 	
-	PYPOSE_LOAD_SEQUENCE			=0x0A,
-	PYPOSE_PLAY_SQUENCE				=0x0B,
-	PYPOSE_LOOP_SQUENCE				=0x0C,
+	PYPOSE_PLAY_SEQUENCE			=0x0A,
+	PYPOSE_LOOP_SEQUENCE			=0x0B,
+	PYPOSE_TEST								=0x19,
 #endif
 } dynamixel_request_t;
 
@@ -73,6 +87,7 @@ typedef enum {
 	ZMQ_ERR_INVALID_FORMAT					= -1001,
 	ZMQ_ERR_INVALID_PARAMETERS			= -1002,
 	ZMQ_ERR_INVALID_PARAMETER_COUNT	= -1003,
+	ZMQ_ERR_INVALID_ID							= -1004,
 	ZMQ_ERR_BUS_OFFLINE							= -1010,
 	
 } zmq_error_code_t;
@@ -97,6 +112,11 @@ int main(int argc, char** argv) {
 	for (pose_idx=0; pose_idx<PYPOSE_MAX_POSE_COUNT; pose_idx++) {
 		pyPose_Poses[pose_idx]=NULL;
 	}
+	uint16_t seq_idx;
+	for (seq_idx=0; seq_idx<PYPOSE_MAX_SEQUENCE_COUNT; seq_idx++) {
+		pyPose_Sequences[seq_idx]=NULL;
+	}
+
 #endif
 	namespace po = boost::program_options;
 
@@ -266,18 +286,18 @@ int main(int argc, char** argv) {
 						break;
 					case DYNAMIXEL_RQ_WRITE_DATA:
 						//zmq-message: <cmd>,<id>,<register>,<count>,<data>,<data+1>
-						if ((rx_vect.size()<5) or ((uint16_t)(rx_vect.at(2)*(rx_vect.at(3)+1))>rx_vect.size())) {
+						if ((rx_vect.size()<5) or ((uint16_t)(rx_vect.at(3)+4)>rx_vect.size())) {
 							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
 						} else if (dyn_connected==0) {
 							/* copy into uint8_t*/
-							for (uint8_t cP=0;cP<rx_vect.size()-3;cP++) {
-								tmp_uint8[cP]=rx_vect.at(cP+3);
+							for (uint8_t cP=0;cP<(rx_vect.size()-4);cP++) {
+								tmp_uint8[cP]=rx_vect.at(cP+4);
 							}
 							dynamixel_ret=dynamixel_write_data(
 								dyn,
 								(uint8_t)rx_vect.at(1),
 								(dynamixel_register_t)rx_vect.at(2),
-								rx_vect.size()-3,
+								rx_vect.size()-4,
 								tmp_uint8
 							);
 							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
@@ -291,14 +311,14 @@ int main(int argc, char** argv) {
 						/* this will cut higher bytes from parameters */
 						if (dyn_connected==0) {
 							/* copy into uint8_t*/
-							for (uint8_t cP=0;cP<rx_vect.size()-3;cP++) {
-								tmp_uint8[cP]=rx_vect.at(cP+3);
+							for (uint8_t cP=0;cP<rx_vect.size()-4;cP++) {
+								tmp_uint8[cP]=rx_vect.at(cP+4);
 							}
 							dynamixel_ret=dynamixel_reg_write(
 								dyn,
 								(uint8_t)rx_vect.at(1),
 								(dynamixel_register_t)rx_vect.at(2),
-								rx_vect.size()-3,
+								rx_vect.size()-4,
 								tmp_uint8
 							);
 							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
@@ -387,53 +407,142 @@ int main(int argc, char** argv) {
 						break;
 #ifdef ENABLE_PYPOSE_COMMANDS
 					case PYPOSE_SET_POSESIZE:
-						//zmq-message: <cmd>,<size>
-						if (rx_vect.at(1)<PYPOSE_MAX_POSE_SIZE) {
-							pyPose_PoseSize=(uint8_t)rx_vect.at(1);
-							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
-							tx_vect.push_back(dynamixel_ret);
-						} else {
-							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
-						}
-						break;
-					case PYPOSE_POSE_POSITIONS:
-						//zmq-message: <cmd>,<index>,<pos1_L>, <pos1_H>
-						pose_idx=rx_vect.at(1);
-						if ((pyPose_PoseSize<PYPOSE_MAX_POSE_SIZE) && ((uint16_t)rx_vect.size()==(pyPose_PoseSize*2+2))) {
-							if (pose_idx<PYPOSE_MAX_POSE_COUNT) {
-								if (not pyPose_Poses[pose_idx]) {
-									//pose does not exist already
-									pyPose_Poses[pose_idx]=(pypose_pose_t*)malloc(sizeof(pypose_pose_t));
-									pyPose_Poses[pose_idx]->len=0;
-									pyPose_Poses[pose_idx]->values=NULL;
-								}
-								if ((pyPose_Poses[pose_idx]->values) && (pyPose_Poses[pose_idx]->len != pyPose_PoseSize)) {
-									//pose size not corret
-									free(pyPose_Poses[pose_idx]->values);
-									pyPose_Poses[pose_idx]->len=0;
-								}
-								if (not pyPose_Poses[pose_idx]->len) {
-									//create new memory
-									pyPose_Poses[pose_idx]->values=(uint16_t*)malloc(sizeof(uint16_t)*pyPose_PoseSize);
-								}
-								//now do a copy
-								uint16_t* uint16p=pyPose_Poses[pose_idx]->values;
-								for (uint8_t i=0;i<pyPose_PoseSize;i++) {
-									uint16p[i]=rx_vect.at(2+i*2)|(rx_vect.at(3+i*2)<<8);
+						//zmq-message: <cmd>,<id>,<size>
+						if (rx_vect.at(1)==PYPOSE_ID) {
+							if (rx_vect.at(2)<PYPOSE_MAX_POSE_SIZE) {
+								pyPose_PoseSize=(uint8_t)rx_vect.at(2);
+								if (debug) {
+									std::cout << "New pose size received: "<< (int)pyPose_PoseSize << std::endl;
 								}
 								tx_vect.push_back(ZMQ_ERR_NO_ERROR);
-								tx_vect.push_back(dynamixel_ret);
+								tx_vect.push_back(pyPose_PoseSize);
 							} else {
 								tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
 							}
 						} else {
-							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+							tx_error_code=ZMQ_ERR_INVALID_ID;
 						}
 						break;
-					case PYPOSE_SEQUENCE_DATA:
+					case PYPOSE_LOAD_POSE:
+						//zmq-message: <cmd>,<id>,<index>,<pos1_L>, <pos1_H>
+						if (rx_vect.at(1)==PYPOSE_ID) {
+							pose_idx=rx_vect.at(2);
+							if ((pyPose_PoseSize<PYPOSE_MAX_POSE_SIZE) && ((uint16_t)rx_vect.size()==(pyPose_PoseSize*2+3))) {
+								if (pose_idx<PYPOSE_MAX_POSE_COUNT) {
+									if (not pyPose_Poses[pose_idx]) {
+										//pose does not exist already
+										pyPose_Poses[pose_idx]=(pypose_pose_t*)malloc(sizeof(pypose_pose_t));
+										pyPose_Poses[pose_idx]->len=0;
+										pyPose_Poses[pose_idx]->values=NULL;
+									}
+									if ((pyPose_Poses[pose_idx]->values) && (pyPose_Poses[pose_idx]->len != pyPose_PoseSize)) {
+										//pose size not corret
+										free(pyPose_Poses[pose_idx]->values);
+										pyPose_Sequences[seq_idx]->parts=NULL;
+										pyPose_Poses[pose_idx]->len=0;
+									}
+									if (not pyPose_Poses[pose_idx]->len) {
+										//create new memory
+										pyPose_Poses[pose_idx]->values=(uint16_t*)malloc(sizeof(uint16_t)*pyPose_PoseSize);
+										pyPose_Poses[pose_idx]->len=pyPose_PoseSize;
+									}
+									//now do a copy
+									uint16_t* uint16p=pyPose_Poses[pose_idx]->values;
+									for (uint8_t i=0;i<pyPose_PoseSize;i++) {
+										uint16p[i]=rx_vect.at(3+i*2)|(rx_vect.at(4+i*2)<<8);
+									}
+									if (debug) {
+										std::cout << "New pose received." << std::endl;
+										std::cout << "  * length: "<< (int)pyPose_PoseSize  << std::endl;
+										std::cout << "  * id    : "<< pose_idx  << std::endl;
+										std::cout << "  * data  : "<<  std::endl;
+										std::cout << "          : ";
+										for (uint8_t i=0;i<pyPose_PoseSize;i++) {
+											std::cout << uint16p[i] << ",";
+										}
+										std::cout <<  std::endl;
+									}
+									tx_vect.push_back(ZMQ_ERR_NO_ERROR);
+									tx_vect.push_back(pose_idx);
+									tx_vect.push_back(pyPose_PoseSize);
+								} else {
+									tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+								}
+							} else {
+								tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+							}
+						} else {
+							tx_error_code=ZMQ_ERR_INVALID_ID;
+						}
+						break;
 					case PYPOSE_LOAD_SEQUENCE:
-					case PYPOSE_PLAY_SQUENCE:
-					case PYPOSE_LOOP_SQUENCE:
+						//zmq-message: <cmd>,<id>,<pose_id>,<delay_L>,<delay_H>,<???>,<???>,<???>
+						if (rx_vect.at(1)==PYPOSE_ID) {
+							uint8_t no_elements=((uint16_t)rx_vect.size()-2)/3;
+							seq_idx=0;
+							if (!pyPose_Sequences[seq_idx]) {
+								pyPose_Sequences[seq_idx]=(pypose_sequence_t*)malloc(sizeof(pypose_sequence_t));
+								pyPose_Sequences[seq_idx]->len=0;
+								pyPose_Sequences[seq_idx]->parts=NULL;
+							}
+							pypose_sequence_t* cSeq=pyPose_Sequences[seq_idx];
+							if ((cSeq->parts) && (cSeq->len != no_elements)) {
+								//sequence size not corret
+								free(cSeq->parts);
+								cSeq->parts=NULL;
+								cSeq->len=0;
+							}
+							if (not cSeq->len) {
+								cSeq->len=no_elements;
+								//create new memory
+								cSeq->parts=(pypose_seq_part_t*)malloc(sizeof(pypose_seq_part_t)*no_elements);
+							}
+							for (uint8_t i=0;i<no_elements;i++) {
+								cSeq->parts[i].pose_id = rx_vect.at(2+3*i);
+								cSeq->parts[i].delay = rx_vect.at(3+3*i)|(rx_vect.at(4+3*i)<<8);
+							}
+							if (debug) {
+								std::cout << "New sequence received." << std::endl;
+								std::cout << "  * length: "<< (int)no_elements  << std::endl;
+								std::cout << "  * id    : "<< seq_idx  << std::endl;
+								std::cout << "  * data  : "<<  std::endl;
+								std::cout << "          : ";
+								for (uint8_t i=0;i<no_elements;i++) {
+									std::cout << (int)(cSeq->parts[i].pose_id) << ":" << (int)(cSeq->parts[i].delay) << " | ";
+								}
+								std::cout <<  std::endl;
+							}
+									
+							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
+							tx_vect.push_back(seq_idx);
+							tx_vect.push_back(no_elements);
+						} else {
+							tx_error_code=ZMQ_ERR_INVALID_ID;
+						}
+						break;
+					case PYPOSE_PLAY_SEQUENCE:
+						//zmq-message: <cmd>,<id>
+						if (rx_vect.at(1)==PYPOSE_ID) {
+							if (debug) {
+								std::cout << "Nothing to do for load sequence." << std::endl;
+							}
+							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
+						} else {
+							tx_error_code=ZMQ_ERR_INVALID_ID;
+						}
+						break;
+					case PYPOSE_LOOP_SEQUENCE:
+						if (rx_vect.at(1)==PYPOSE_ID) {
+						} else {
+							tx_error_code=ZMQ_ERR_INVALID_ID;
+						}
+						break;
+					case PYPOSE_TEST:
+						if (rx_vect.at(1)==PYPOSE_ID) {
+						} else {
+							tx_error_code=ZMQ_ERR_INVALID_ID;
+						}
+						break;
 #endif
 					default:
 						tx_error_code=ZMQ_ERR_INVALID_COMMAND;
