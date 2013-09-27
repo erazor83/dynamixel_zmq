@@ -42,6 +42,7 @@ typedef struct {
 pypose_sequence_t* pyPose_Sequences[PYPOSE_MAX_SEQUENCE_COUNT];
 
 uint8_t pyPose_PoseSize=0;
+
 #endif
 
 #include "dynamixel.h"
@@ -75,10 +76,9 @@ typedef enum {
 
 #define DESCRIPTION "dyn_zmq - Dynamixel ZeroMQ service"
 namespace { 
-  const size_t ERROR_IN_COMMAND_LINE = 1; 
-  const size_t SUCCESS = 0; 
-  const size_t ERROR_UNHANDLED_EXCEPTION = 2; 
- 
+	const size_t ERROR_IN_COMMAND_LINE = 1; 
+	const size_t SUCCESS = 0; 
+	const size_t ERROR_UNHANDLED_EXCEPTION = 2; 
 }
 
 typedef enum {
@@ -94,6 +94,48 @@ typedef enum {
 //using namespace std;
 //using namespace dynapi;
 
+
+#ifdef ENABLE_PYPOSE_COMMANDS
+/* stuff for sequence playing */
+#include <pthread.h>
+#include <time.h>
+pthread_cond_t pyPose_SequencePlayer_active = PTHREAD_COND_INITIALIZER;
+
+typedef struct {
+	uint8_t state;
+	bool								enabled;
+	dynamixel_t*				dynamixel_ctx;
+	pypose_pose_t*			poses;
+	pypose_sequence_t* 	sequences;
+
+	pthread_mutex_t lock;
+	pthread_cond_t cond;
+} pypose_player_ctx_t;
+
+
+void *pyPose_SequencePlayer(void* arg){
+	pypose_player_ctx_t* player_ctx = (pypose_player_ctx_t*)arg;
+	int i=0;
+	while(true) {
+		pthread_mutex_lock(&player_ctx->lock);
+		while (player_ctx->enabled == false) {
+			i++;
+			std::cout << "Sleeping: " << i << std::endl;
+			pthread_cond_wait(&player_ctx->cond, &player_ctx->lock);
+		}
+		pthread_mutex_unlock(&player_ctx->lock);
+		i++;
+		sleep(1);
+		std::cout << "Threading: " << i << std::endl;
+	}
+	//pthread_cond_broadcast(&player_ctx->cond);
+	//
+	return NULL;
+}
+
+void pyPose_SequencePlayer_cmd(uint8_t command);
+#endif
+
 int main(int argc, char** argv) {
 	// === program parameters ===
 	std::string zmq_uri="tcp://*:5555";
@@ -108,6 +150,19 @@ int main(int argc, char** argv) {
 	int16_t dynamixel_ret=0;
 	
 #ifdef ENABLE_PYPOSE_COMMANDS
+	//void* print_message(void*);
+	
+	pypose_player_ctx_t pyPose_Player_Context;
+	pyPose_Player_Context.enabled=true;
+	pthread_mutex_init(&pyPose_Player_Context.lock, NULL);
+	pthread_cond_init(&pyPose_Player_Context.cond, NULL);
+	
+	pthread_t pyPose_Player_Thread;
+	pthread_create(&pyPose_Player_Thread, NULL, &pyPose_SequencePlayer, (void*)&pyPose_Player_Context);
+
+	//sleep(10);
+	pyPose_Player_Context.enabled=false;
+	
 	uint16_t pose_idx;
 	for (pose_idx=0; pose_idx<PYPOSE_MAX_POSE_COUNT; pose_idx++) {
 		pyPose_Poses[pose_idx]=NULL;
@@ -116,7 +171,6 @@ int main(int argc, char** argv) {
 	for (seq_idx=0; seq_idx<PYPOSE_MAX_SEQUENCE_COUNT; seq_idx++) {
 		pyPose_Sequences[seq_idx]=NULL;
 	}
-
 #endif
 	namespace po = boost::program_options;
 
@@ -569,6 +623,9 @@ int main(int argc, char** argv) {
 			socket.send(tx_zmq);
 		}
 	}
+#ifdef ENABLE_PYPOSE_COMMANDS
+	//TODO: destroy threads
+#endif
 	return 0;
 }
 
