@@ -430,6 +430,10 @@ int main(int argc, char** argv) {
 							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
 						}
 						break;
+					case PYPOSE_SEQUENCE_DATA:
+					case PYPOSE_LOAD_SEQUENCE:
+					case PYPOSE_PLAY_SQUENCE:
+					case PYPOSE_LOOP_SQUENCE:
 #endif
 					default:
 						tx_error_code=ZMQ_ERR_INVALID_COMMAND;
