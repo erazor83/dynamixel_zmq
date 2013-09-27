@@ -17,6 +17,19 @@
 #include <zmq.hpp>
 
 
+#ifdef ENABLE_PYPOSE_COMMANDS
+#define PYPOSE_MAX_POSE_SIZE  32
+#define PYPOSE_MAX_POSE_COUNT 255
+typedef struct {
+	uint8_t id;
+	uint8_t len;
+	uint16_t *values;
+} pypose_pose_t;
+
+pypose_pose_t* pyPose_Poses[PYPOSE_MAX_POSE_COUNT];
+uint8_t pyPose_PoseSize;
+#endif
+
 #include "dynamixel.h"
 typedef enum {
 	/* default dynamixel commands */
@@ -32,7 +45,18 @@ typedef enum {
 	DYNAMIXEL_RQ_ZMQ_ECHO					=0x100,
 	
 	DYNAMIXEL_RQ_SYNC_WRITE_WORDS	=0x183, 
+#ifdef ENABLE_PYPOSE_COMMANDS
+	/*0x07, <pose-size>*/
+	PYPOSE_SET_POSESIZE				=0x07,
+	/*0x08, <index>. <pos1_L>, <pos1_H> */
+	PYPOSE_POSE_POSITIONS			=0x08,
+	/*0x08, <index>. <pos1_L>, <pos1_H> */
+	PYPOSE_SEQUENCE_DATA			=0x09,
 	
+	PYPOSE_LOAD_SEQUENCE			=0x0A,
+	PYPOSE_PLAY_SQUENCE				=0x0B,
+	PYPOSE_LOOP_SQUENCE				=0x0C,
+#endif
 } dynamixel_request_t;
 
 #define DESCRIPTION "dyn_zmq - Dynamixel ZeroMQ service"
@@ -59,15 +83,21 @@ int main(int argc, char** argv) {
 	// === program parameters ===
 	std::string zmq_uri="tcp://*:5555";
 	std::string serial_port="/dev/ttyUSB0";
-	std::string interface_type="cm5";
+	std::string interface_type="rs232";
 	uint32_t serial_speed=1000000;
 	
 	bool debug=false;
 	
-	int tx_error_code=0;
+	int16_t tx_error_code=0;
 	
-	int dynamixel_ret=0;
+	int16_t dynamixel_ret=0;
 	
+#ifdef ENABLE_PYPOSE_COMMANDS
+	uint16_t pose_idx;
+	for (pose_idx=0; pose_idx<PYPOSE_MAX_POSE_COUNT; pose_idx++) {
+		pyPose_Poses[pose_idx]=NULL;
+	}
+#endif
 	namespace po = boost::program_options;
 
   // Setup options.
@@ -77,7 +107,7 @@ int main(int argc, char** argv) {
 		("uri", po::value< std::string >( &zmq_uri ),					"ZeroMQ server uri | default: tcp://*:5555" )
 		("port", po::value< std::string >( &serial_port ),		"serial port       | default: /dev/ttyUSB0" )
 		("speed", po::value< uint32_t >( &serial_speed ),			"serial speed      | default: 1000000" )
-		("type", po::value< std::string >( &interface_type ),	"interface type    | default: cm5" )
+		("type", po::value< std::string >( &interface_type ),	"interface type    | default: rs232" )
 		("dynamixel-scan", "scan for dynamixel servos")
 		("debug", "print out debugging info")
 	;
@@ -89,7 +119,10 @@ int main(int argc, char** argv) {
 		po::notify(vm);  
 			
 		if (vm.count("help")) {
-			std::cout << DESCRIPTION << std::endl << desc << std::endl; 
+			std::cout << DESCRIPTION << std::endl << desc << std::endl;
+#ifdef ENABLE_PYPOSE_COMMANDS
+			std::cout << "  * PyPose support enabled" << std::endl;
+#endif
 			return SUCCESS; 
 		}
 		
@@ -351,9 +384,53 @@ int main(int argc, char** argv) {
 						//zmq-message: <cmd>,<data>,<data+n>
 						tx_obj=rx_obj;
 						tx_error_code=ZMQ_ERR_NO_ERROR;
-						msgpack::pack(&tx_msg, tx_obj);
 						break;
-						
+#ifdef ENABLE_PYPOSE_COMMANDS
+					case PYPOSE_SET_POSESIZE:
+						//zmq-message: <cmd>,<size>
+						if (rx_vect.at(1)<PYPOSE_MAX_POSE_SIZE) {
+							pyPose_PoseSize=(uint8_t)rx_vect.at(1);
+							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
+							tx_vect.push_back(dynamixel_ret);
+						} else {
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+						}
+						break;
+					case PYPOSE_POSE_POSITIONS:
+						//zmq-message: <cmd>,<index>,<pos1_L>, <pos1_H>
+						pose_idx=rx_vect.at(1);
+						if ((pyPose_PoseSize<PYPOSE_MAX_POSE_SIZE) && ((uint16_t)rx_vect.size()==(pyPose_PoseSize*2+2))) {
+							if (pose_idx<PYPOSE_MAX_POSE_COUNT) {
+								if (not pyPose_Poses[pose_idx]) {
+									//pose does not exist already
+									pyPose_Poses[pose_idx]=(pypose_pose_t*)malloc(sizeof(pypose_pose_t));
+									pyPose_Poses[pose_idx]->len=0;
+									pyPose_Poses[pose_idx]->values=NULL;
+								}
+								if ((pyPose_Poses[pose_idx]->values) && (pyPose_Poses[pose_idx]->len != pyPose_PoseSize)) {
+									//pose size not corret
+									free(pyPose_Poses[pose_idx]->values);
+									pyPose_Poses[pose_idx]->len=0;
+								}
+								if (not pyPose_Poses[pose_idx]->len) {
+									//create new memory
+									pyPose_Poses[pose_idx]->values=(uint16_t*)malloc(sizeof(uint16_t)*pyPose_PoseSize);
+								}
+								//now do a copy
+								uint16_t* uint16p=pyPose_Poses[pose_idx]->values;
+								for (uint8_t i=0;i<pyPose_PoseSize;i++) {
+									uint16p[i]=rx_vect.at(2+i*2)|(rx_vect.at(3+i*2)<<8);
+								}
+								tx_vect.push_back(ZMQ_ERR_NO_ERROR);
+								tx_vect.push_back(dynamixel_ret);
+							} else {
+								tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+							}
+						} else {
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETERS;
+						}
+						break;
+#endif
 					default:
 						tx_error_code=ZMQ_ERR_INVALID_COMMAND;
 				}
