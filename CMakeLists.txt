@@ -4,7 +4,7 @@ PROJECT(dynamixel_zmq)
 SET(Boost_USE_STATIC_LIBS        OFF)
 SET(Boost_USE_MULTITHREADED      OFF)
 
-SET(USE_DYNAMIXEL_BUNDLED        ON)
+SET(USE_DYNAMIXEL_BUNDLED        OFF)
 
 #enables pypose special commands
 SET(ENABLE_PYPOSE_COMMANDS       ON)
