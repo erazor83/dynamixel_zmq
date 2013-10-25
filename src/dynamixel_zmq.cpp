@@ -19,6 +19,7 @@
 #include <dynamixel.h>
 #include <dynamixel-rtu.h>
 
+#include "config.h"
 
 #ifdef ENABLE_PYPOSE_COMMANDS
 #define PYPOSE_ID             253
@@ -200,11 +201,12 @@ int main(int argc, char** argv) {
 			
 		if (vm.count("help")) {
 			std::cout << DESCRIPTION << std::endl << desc << std::endl;
+			std::cout << "Features:" << std::endl;
 #ifdef ENABLE_PYPOSE_COMMANDS
-			std::cout << "  * PyPose support enabled" << std::endl;
+			std::cout << "  * PyPose support" << std::endl;
 #endif
 #ifdef ENABLE_TROSSEN_COMMANDER
-			std::cout << "  * Trossen Commander support enabled" << std::endl;
+			std::cout << "  * Trossen Commander support" << std::endl;
 #endif
 			
 			return SUCCESS; 
@@ -613,11 +615,11 @@ int main(int argc, char** argv) {
 							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
 						} else if (dyn_connected==0) {
 							trossen_cmd_t command;
-							command->right_V		=rx_vect.at(1);
-							command->right_H		=rx_vect.at(2);
-							command->left_V			=rx_vect.at(3);
-							command->left_H			=rx_vect.at(4);
-							command->buttons		=rx_vect.at(5);
+							command.right_V		=rx_vect.at(1);
+							command.right_H		=rx_vect.at(2);
+							command.left_V		=rx_vect.at(3);
+							command.left_H		=rx_vect.at(4);
+							command.buttons		=rx_vect.at(5);
 							dynamixel_ret=dynamixel_adv_trossen_cmd(
 								dyn,
 								&command

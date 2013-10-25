@@ -62,4 +62,7 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DI
 ADD_EXECUTABLE(dynamixel_zmq dynamixel_zmq.cpp)
 TARGET_LINK_LIBRARIES(dynamixel_zmq ${Boost_LIBRARIES} zmq msgpack dynamixel pthread)
 
+INSTALL (TARGETS dynamixel_zmq
+	RUNTIME DESTINATION bin
+)
 
