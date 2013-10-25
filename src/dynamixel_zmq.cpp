@@ -200,7 +200,7 @@ int main(int argc, char** argv) {
 		po::notify(vm);  
 			
 		if (vm.count("help")) {
-			std::cout << DESCRIPTION << std::endl << desc << std::endl;
+			std::cout << DESCRIPTION << " (version "<< VERSION << ")" << std::endl << desc << std::endl;
 			std::cout << "Features:" << std::endl;
 #ifdef ENABLE_PYPOSE_COMMANDS
 			std::cout << "  * PyPose support" << std::endl;
