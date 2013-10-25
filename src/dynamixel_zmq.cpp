@@ -16,6 +16,9 @@
 #include <vector>
 #include <zmq.hpp>
 
+#include <dynamixel.h>
+#include <dynamixel-rtu.h>
+
 
 #ifdef ENABLE_PYPOSE_COMMANDS
 #define PYPOSE_ID             253
@@ -71,6 +74,9 @@ typedef enum {
 	PYPOSE_PLAY_SEQUENCE			=0x0A,
 	PYPOSE_LOOP_SEQUENCE			=0x0B,
 	PYPOSE_TEST								=0x19,
+#endif
+#ifdef ENABLE_TROSSEN_COMMANDER
+	TROSSEN_COMMANDER					=0x200,
 #endif
 } dynamixel_request_t;
 
@@ -197,6 +203,10 @@ int main(int argc, char** argv) {
 #ifdef ENABLE_PYPOSE_COMMANDS
 			std::cout << "  * PyPose support enabled" << std::endl;
 #endif
+#ifdef ENABLE_TROSSEN_COMMANDER
+			std::cout << "  * Trossen Commander support enabled" << std::endl;
+#endif
+			
 			return SUCCESS; 
 		}
 		
@@ -255,7 +265,6 @@ int main(int argc, char** argv) {
 		std::cout << "Server started (uri="<<zmq_uri<<")" << std::endl;
 	}
 
-		
 	/* i decided to use a static buffer instead of malloc on every call */
 	uint8_t		tmp_uint8[DYNAMIXEL_MAX_PARAMETER_COUNT];
 	uint16_t	tmp_uint16[DYNAMIXEL_MAX_PARAMETER_COUNT/2];
@@ -595,6 +604,26 @@ int main(int argc, char** argv) {
 						if (rx_vect.at(1)==PYPOSE_ID) {
 						} else {
 							tx_error_code=ZMQ_ERR_INVALID_ID;
+						}
+						break;
+#endif
+#ifdef ENABLE_TROSSEN_COMMANDER
+					case TROSSEN_COMMANDER:
+						if (rx_vect.size()!=6) {
+							tx_error_code=ZMQ_ERR_INVALID_PARAMETER_COUNT;
+						} else if (dyn_connected==0) {
+							trossen_cmd_t command;
+							command->right_V		=rx_vect.at(1);
+							command->right_H		=rx_vect.at(2);
+							command->left_V			=rx_vect.at(3);
+							command->left_H			=rx_vect.at(4);
+							command->buttons		=rx_vect.at(5);
+							dynamixel_ret=dynamixel_adv_trossen_cmd(
+								dyn,
+								&command
+							);
+							tx_vect.push_back(ZMQ_ERR_NO_ERROR);
+							tx_vect.push_back(dynamixel_ret);
 						}
 						break;
 #endif
