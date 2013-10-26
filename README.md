@@ -32,6 +32,14 @@ cmake .
 make
 </pre>
 
+There are some options to enable different additional features:
+  * WITH_PYPOSE - enable pypose special packages
+  * WITH_TROSSEN - enable Trossen Commander Support (needs libdynamixel with the same feature)
+
+<pre>
+cmake -DWITH_SHARED=1 .
+</pre>
+
 links
 -------------------------
 
