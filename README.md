@@ -42,23 +42,11 @@ cmake -DWITH_SHARED=1 .
 
 links
 ------------
-
-ZeroMQ
--------------------------
-  * http://zeromq.org/
-
-dynapi
--------------------------
-  * http://www.jrl.cs.uni-frankfurt.de/web/projects/dynapi-robotis-dynamixel-c-api/
-
-Python
--------------------------
-  * http://www.python.org/
-  * https://code.google.com/p/pydynamixel/
-
-NUKE
--------------------------
-  * https://code.google.com/p/arbotix/wiki/GettingSetup
+  * [ZeroMQ](http://zeromq.org/)
+  * [dynapi](http://www.jrl.cs.uni-frankfurt.de/web/projects/dynapi-robotis-dynamixel-c-api/)
+  * [Python](http://www.python.org/)
+  * [PyDynamixel](https://code.google.com/p/pydynamixel/)
+  * [NUKE](https://code.google.com/p/arbotix/wiki/GettingSetup)
 
 license
 -------------------------
