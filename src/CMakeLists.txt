@@ -1,6 +1,6 @@
 SET(CORELIBS ${Boost_SYSTEM_LIBRARY})
 
-IF (${CMAKE_SYSTEM} MATCHES ".*gentoo.*")
+IF (EXISTS "/etc/gentoo-release")
 	SET (GENTOO ON)
 	SET (LINUX)
 	MESSAGE("=== Detected system is Gentoo ===")
